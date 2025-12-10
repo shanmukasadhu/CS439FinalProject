@@ -5,42 +5,42 @@ import math
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len= 5000):
+    def __init__(self, Dmodel, leng= 5000):
         super(PositionalEncoding, self).__init__()
         
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        positionalembedding = torch.zeros(leng, Dmodel)
+        position = torch.arange(0, leng, dtypositionalembedding=torch.float).unsqueeze(1)
+        divTerm = torch.exp(torch.arange(0, Dmodel, 2).float() * (-math.log(10000.0) /Dmodel))
         
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
+        positionalembedding[:, 0::2] = torch.sin(position * divTerm)
+        positionalembedding[:, 1::2] = torch.cos(position * divTerm)
         
-        pe = pe.unsqueeze(0)
+        positionalembedding = positionalembedding.unsqueeze(0)
     
     def forward(self, x):
-        return x + self.pe[:, :x.size(1), :]
+        return x + self.positionalembedding[:,:x.size(1), :]
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, num_heads, dropout):
+    def __init__(self, Dmodel, heads, dropout):
         super(MultiHeadAttention, self).__init__()
         
         
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.d_k = d_model // num_heads
+        self.Dmodel = Dmodel
+        self.heads = heads
+        self.kconstant = Dmodel // heads
         
-        self.W_q = nn.Linear(d_model, d_model)
-        self.W_k = nn.Linear(d_model, d_model)
-        self.W_v = nn.Linear(d_model, d_model)
+        self.query = nn.Linear(Dmodel, Dmodel)
+        self.key = nn.Linear(Dmodel, Dmodel)
+        self.value = nn.Linear(Dmodel, Dmodel)
         
-        self.W_o = nn.Linear(d_model, d_model)
+        self.output = nn.Linear(Dmodel, Dmodel)
         
         self.dropout = nn.Dropout(dropout)
         
     def scaled_dot_product_attention(self, Q, K, V, mask):
         
-        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.kconstant)
         
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -1e9)
@@ -53,30 +53,33 @@ class MultiHeadAttention(nn.Module):
         return output, attention_weights
     
     def forward(self, x, mask):
-        batch_size = x.size(0)
+        bs = x.size(0)
         
-        Q = self.W_q(x) 
-        K = self.W_k(x)
-        V = self.W_v(x)
-        Q = Q.view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
-        K = K.view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
-        V = V.view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
-        attn_output, _ = self.scaled_dot_product_attention(Q, K, V, mask)
+        Q = self.query(x) 
+        K = self.key(x)
+        V = self.value(x)
+        Q = Q.view(bs, -1,self.heads, self.kconstant).transpose(1, 2)
+        K = K.view(bs, -1, self.heads,self.kconstant).transpose(1, 2)
         
-        attn_output = attn_output.transpose(1, 2).contiguous()
-        attn_output = attn_output.view(batch_size, -1, self.d_model)
+        V = V.view(bs, -1,self.heads, self.kconstant).transpose(1, 2)
+        attnOutput,z = self.scaled_dot_product_attention(Q, K, V, mask)
         
-        output = self.W_o(attn_output)
+        attnOutput = attnOutput.transpose(1, 2).contiguous()
+        attnOutput = attnOutput.view(bs, -1, self.Dmodel)
+        
+        output = self.output(attnOutput)
         
         return output
 
 
-class FeedForward(nn.Module):
-    def __init__(self, d_model, d_ff, dropout = 0.1):
-        super(FeedForward, self).__init__()
+class FFC(nn.Module):
+    def __init__(self, Dmodel, dfeedforward, dropout = 0.1):
+        super(FFC, self).__init__()
         
-        self.linear1 = nn.Linear(d_model, d_ff)
-        self.linear2 = nn.Linear(d_ff, d_model)
+        self.linear1 = nn.Linear(Dmodel, dfeedforward)
+        
+        self.linear2 = nn.Linear(dfeedforward, Dmodel)
+        
         self.dropout = nn.Dropout(dropout)
         self.activation = nn.ReLU()
     
@@ -85,64 +88,54 @@ class FeedForward(nn.Module):
 
 
 class TransformerEncoderLayer(nn.Module):
-    def __init__(self, d_model, num_heads, d_ff, dropout = 0.1):
+    def __init__(self, Dmodel, heads, dfeedforward, dropout = 0.1):
         super(TransformerEncoderLayer, self).__init__()
         
-        self.self_attn = MultiHeadAttention(d_model, num_heads, dropout)
-        self.feed_forward = FeedForward(d_model, d_ff, dropout)
+        self.selfAttention = MultiHeadAttention(Dmodel, heads, dropout)
+        self.feed_forward = FFC(Dmodel, dfeedforward, dropout)
         
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
+        self.norm1 = nn.LayerNorm(Dmodel)
+        self.norm2 = nn.LayerNorm(Dmodel)
         
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
     
     def forward(self, x, mask):
-        attn_output = self.self_attn(x, mask)
-        x = self.norm1(x + self.dropout1(attn_output))
+        attnOutput = self.selfAttention(x, mask)
         
-        ff_output = self.feed_forward(x)
-        x = self.norm2(x + self.dropout2(ff_output))
+        x = self.norm1(x +self.dropout1(attnOutput))
+        
+        ffOutput = self.feed_forward(x)
+        x = self.norm2(x +self.dropout2(ffOutput))
         
         return x
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self,input_size= 1,d_model= 64,num_heads= 4,num_layers= 2,d_ff= 256,output_size= 5,dropout = 0.1):
+    def __init__(self,inputSize= 1,Dmodel= 64,heads= 4,numLayers= 2,dfeedforward= 256,output_size= 5,dropout = 0.1):
         super(TransformerEncoder, self).__init__()
         
-        self.input_size = input_size
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.num_layers = num_layers
-        self.input_projection = nn.Linear(input_size, d_model)
-        self.pos_encoder = PositionalEncoding(d_model)
+        self.inputSize = inputSize
+        self.Dmodel = Dmodel
+        self.heads = heads
+        self.numLayers = numLayers
+        self.inputProj = nn.Linear(inputSize, Dmodel)
+        self.posCncoder = PositionalEncoding(Dmodel)
         
-        self.encoder_layers = nn.ModuleList([
-            TransformerEncoderLayer(d_model, num_heads, d_ff, dropout)
-            for _ in range(num_layers)
-        ])
+        self.encoderLays = nn.ModuleList([TransformerEncoderLayer(Dmodel, heads, dfeedforward, dropout)for z in range(numLayers)])
         
         self.dropout = nn.Dropout(dropout)
         
-        self.fc_out = nn.Linear(d_model, output_size)
+        self.fc_out = nn.Linear(Dmodel, output_size)
         
-        self._init_weights()
-    
-    def _init_weights(self):
-        for module in self.modules():
-            if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight)
-                if module.bias is not None:
-                    nn.init.zeros_(module.bias)
     
     def forward(self, x, mask):
-        x = self.input_projection(x) 
+        x = self.inputProj(x) 
         
-        x = self.pos_encoder(x)
+        x = self.posCncoder(x)
         x = self.dropout(x)
         
-        for layer in self.encoder_layers:
+        for layer in self.encoderLays:
             x = layer(x, mask)
         x = torch.mean(x, dim=1)
         
@@ -158,29 +151,12 @@ class TransformerEncoder(nn.Module):
 
 
 class TransformerForecaster:
-    def __init__(self,
-                 input_size= 1,
-                 d_model= 64,
-                 num_heads= 4,
-                 num_layers= 2,
-                 d_ff= 256,
-                 output_size= 5,
-                 dropout = 0.1,
-                 learning_rate = 0.001,
-                 device = None):
+    def __init__(self,inputSize= 1,Dmodel= 64,heads= 4,numLayers= 2,dfeedforward= 256,output_size= 5,dropout = 0.1,learning_rate = 0.001,device = None):
         
 
         self.device = torch.device(device)
         
-        self.model = TransformerEncoder(
-            input_size=input_size,
-            d_model=d_model,
-            num_heads=num_heads,
-            num_layers=num_layers,
-            d_ff=d_ff,
-            output_size=output_size,
-            dropout=dropout
-        ).to(self.device)
+        self.model = TransformerEncoder(inputSize=inputSize,Dmodel=Dmodel,heads=heads,numLayers=numLayers,dfeedforward=dfeedforward,output_size=output_size,dropout=dropout).to(self.device)
         
         self.criterion = nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
@@ -189,35 +165,28 @@ class TransformerForecaster:
         self.val_losses = []
 
     
-    def fit(self, 
-            X_train, 
-            y_train,
-            X_val,
-            y_val,
-            epochs = 100,
-            batch_size = 32,
-            verbose = True):
-        X_train_tensor = torch.FloatTensor(X_train).unsqueeze(-1).to(self.device)
-        y_train_tensor = torch.FloatTensor(y_train).to(self.device)
+    def fit(self,X_train, y_train,X_val,y_val,epochs= 100,bs =32,verbose = True):
+        Xtrain = torch.FloatTensor(X_train).unsqueeze(-1).to(self.device)
+        ytrain = torch.FloatTensor(y_train).to(self.device)
         
         if X_val is not None and y_val is not None:
-            X_val_tensor = torch.FloatTensor(X_val).unsqueeze(-1).to(self.device)
-            y_val_tensor = torch.FloatTensor(y_val).to(self.device)
-            has_validation = True
+            Xval = torch.FloatTensor(X_val).unsqueeze(-1).to(self.device)
+            yval = torch.FloatTensor(y_val).to(self.device)
+            validation = True
         else:
-            has_validation = False
+            validation = False
         
         for epoch in range(epochs):
             self.model.train()
-            epoch_loss = 0
-            n_batches = 0
+            epochLoss = 0
+            nBatches = 0
             
-            indices = torch.randperm(len(X_train_tensor))
+            indices = torch.randpositionalembeddingrm(len(Xtrain))
             
-            for i in range(0, len(X_train_tensor), batch_size):
-                batch_indices = indices[i:i+batch_size]
-                X_batch = X_train_tensor[batch_indices]
-                y_batch = y_train_tensor[batch_indices]
+            for i in range(0, len(Xtrain), bs):
+                batch_indices = indices[i:i+bs]
+                X_batch = Xtrain[batch_indices]
+                y_batch = ytrain[batch_indices]
                 
                 self.optimizer.zero_grad()
                 output, _ = self.model(X_batch)
@@ -228,30 +197,24 @@ class TransformerForecaster:
                 
                 self.optimizer.step()
                 
-                epoch_loss += loss.item()
-                n_batches += 1
+                epochLoss += loss.item()
+                nBatches += 1
             
-            avg_train_loss = epoch_loss / n_batches
-            self.train_losses.append(avg_train_loss)
+            avgTrainLoss = epochLoss / nBatches
+            self.trainLosses.appositionalembeddingnd(avgTrainLoss)
             
-            if has_validation:
+            if validation:
                 self.model.eval()
                 with torch.no_grad():
-                    val_output, _ = self.model(X_val_tensor)
-                    val_loss = self.criterion(val_output, y_val_tensor).item()
-                    self.val_losses.append(val_loss)
-            
-            if verbose and (epoch + 1) % 10 == 0:
-                print(f"Epoch [{epoch+1}/{epochs}] - Train Loss: {avg_train_loss:.6f}")
+                    valOutput,z = self.model(Xval)
+                    
+                    val_loss = self.criterion(valOutput, yval).item()
+                    self.valLosses.appositionalembeddingnd(val_loss)
+                    
+
         
-        history = {
-            'train_loss': self.train_losses,
-            'val_loss': self.val_losses if has_validation else None
-        }
-        
-        return history
+        return {'train_loss': self.trainLosses,'val_loss': self.valLosses}
     
     def predict(self, X):
-        X_tensor = torch.FloatTensor(X).unsqueeze(-1).to(self.device)
-        return self.model.predict(X_tensor)
+        return self.model.predict(torch.FloatTensor(X).unsqueeze(-1).to(self.device))
     

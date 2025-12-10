@@ -131,23 +131,23 @@ for index, stocksrow in t5stocks.iterrows():
     dictforrest[tik] = {'company': company,'prices': prices,'train_prices': tpo,'test_prices': tepo,'predictions': invpred,'acts': acts,'metrics': metrics,'history': history,'split_index': splindex,'model': model}
 
 
-fig, axes = plt.subplots(len(t5stocks), 1, figsize=(16, 4*len(t5stocks)))
+ffig, axes = plt.subplots(len(t5stocks), 1, figsize=(16, 4*len(t5stocks)))
 y = dictforrest.items()
 for index, (tik, rest) in enumerate():
     ax = axes[index]
     
     ax.plot(range(len(rest['prices'])), rest['prices'], label='act Price')
         
-    test_start = rest['split_index'] + lookbackwindow
-    for i, pred in enumerate(rest['predictions']):
+    testStart = rest['split_index'] + lookbackwindow
+    for i,pred in enumerate(rest['predictions']):
         
-        start_index = test_start + i
+        startIdx = testStart+ i
         
-        pred_range = range(start_index, start_index + forecasthorz)
+        predRange = range(startIdx, startIdx +forecasthorz)
         
-        ax.plot(pred_range, pred, color='red')
+        ax.plot(predRange, pred, color='red')
     
-    ax.set_title(f'{tik}-transformer Forecast RMSE: ${rest["metrics"]["rmse"]} | MAPE: {rest["metrics"]["mape"]}%', fontweight='bold')
+    ax.set_title(f'{tik}-ARIMA Forecast RMSE: ${rest["metrics"]["rmse"]} | MAPE: {rest["metrics"]["mape"]}%', fontweight='bold')
     ax.set_xlabel('Trading Day')
     ax.set_ylabel('Prick')
     ax.legend(loc='upper left')
@@ -160,13 +160,13 @@ for index, (tik, rest) in enumerate(l):
     ax = axes[index]
     
     history = rest['history']
-    ep_ra=[]
+    epRA=[]
     for i in range(1, len(history['train_loss']) + 1):
-        ep_ra.append(i)
+        epRA.append(i)
     
-    ax.plot(ep_ra, history['train_loss'], label='Training Loss', color='blue')
+    ax.plot(epRA, history['train_loss'], label='Training Loss', color='blue')
     
-    ax.plot(ep_ra, history['val_loss'], label='Validation Loss', color='orange')
+    ax.plot(epRA, history['val_loss'], label='Validation Loss', color='orange')
     
     ax.set_title(f'{tik} - Training History')
     ax.set_xlabel('Epoch')
@@ -180,57 +180,56 @@ plt.show()
 fig, axes = plt.subplots(len(t5stocks),1,figsize=(16, 20))
 
 l = dictforrest.items()
-for index, (tik, rest) in enumerate(l):
+for index, (tik,rest) in enumerate(l):
     ax = axes[index]
     
-    test_range = range(len(rest['test_prices']))
-    ax.plot(test_range, rest['test_prices'])
+    TR = range(len(rest['test_prices']))
+    ax.plot(TR, rest['test_prices'])
     
     for i, pred in enumerate(rest['predictions']):
-        start_index = lookbackwindow + i
+        startIdx=lookbackwindow+i
         #predrange
-        pred_range = range(start_index, start_index + forecasthorz)
+        predRange=range(startIdx,startIdx+forecasthorz)
         #sad
-        ax.plot(pred_range, pred, color='red', label='Forecast')
+        ax.plot(predRange,pred, color='red',label='Forecast')
     
-    ax.set_title(f'{tik} - Test Set Performance')
+    ax.set_title(f'{tik}:Test Set Performance')
     ax.set_xlabel('Test Set Day')
     
     ax.set_ylabel('Price ($)')
-    
     ax.legend(loc='upper left')
 plt.show()
 
-fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
+fig, (ax1, ax2, ax3) =plt.subplots(1, 3,figsize=(18, 6))
 
 tiks = dictforrest.keys()
 tiks=list(tiks)
-rmse_values = []
-mae_values = []
-mape_values = []
+rmseVals = []
+maeVals = []
+mapeVals = []
 for t in tiks:
-    rmse_values.append(dictforrest[t]['metrics']['rmse'] )
+    rmseVals.append(dictforrest[t]['metrics']['rmse'] )
     
-    mae_values.append(dictforrest[t]['metrics']['mae'] )
+    maeVals.append(dictforrest[t]['metrics']['mae'] )
     
-    mape_values.append(dictforrest[t]['metrics']['mape'] )
+    mapeVals.append(dictforrest[t]['metrics']['mape'] )
 
 #Plotting COde for RMSE
-ax1.bar(tiks, rmse_values, color="blue")
-ax1.set_title('Root Mean Squared Error (RMSE)')
+ax1.bar(tiks, rmseVals, color="blue")
+ax1.set_title('Root Mean Squared Error(RMSE)')
 
 ax1.set_ylabel('RMSE ($)')
 
 #same for mae
-ax2.bar(tiks, mae_values, color="red")
-ax2.set_title('Mean Absolute Error (MAE)')
+ax2.bar(tiks, maeVals, color="red")
+ax2.set_title('Mean Absolute Error(MAE)')
 
 ax2.set_ylabel('MAE ($)')
 
 
 #same for mape
-ax3.bar(tiks, mape_values, color="green")
-ax3.set_title('Mean Absolute Percentage Error (MAPE)')
+ax3.bar(tiks, mapeVals, color="green")
+ax3.set_title('Mean Absolute Percentage Error(MAPE)')
 ax3.set_ylabel('MAPE (%)')
 
 plt.show()
